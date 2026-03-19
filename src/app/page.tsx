@@ -1,65 +1,161 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState, useCallback } from 'react';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import BudgetCard from '@/components/dashboard/BudgetCard';
+import QuickStats from '@/components/dashboard/QuickStats';
+import TransactionForm from '@/components/transaction/TransactionForm';
+import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
+import { getBudgetSummary } from '@/utils/budget';
+import { DEFAULT_BILLING_START_DAY, DEFAULT_MONTHLY_BUDGET } from '@/lib/constants';
+import { Transaction, BudgetSummary } from '@/types';
+
+
+export default function HomePage() {
+  const [mounted, setMounted] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const today = new Date();
+  const billingPeriod = getCurrentBillingPeriod(DEFAULT_BILLING_START_DAY, today);
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      const startDate = formatDateToISO(billingPeriod.startDate);
+      const endDate = formatDateToISO(billingPeriod.endDate);
+
+      const res = await fetch(
+        `/api/transactions?startDate=${startDate}&endDate=${endDate}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data.transactions || []);
+      } else {
+        setTransactions([]);
+      }
+    } catch {
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  // 今月の総支出を計算
+  const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+  // 今日の支出
+  const todayStr = formatDateToISO(today);
+  const todaySpent = transactions
+    .filter((t) => t.transaction_date === todayStr)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // 予算サマリー計算
+  const summary: BudgetSummary = getBudgetSummary(
+    DEFAULT_MONTHLY_BUDGET,
+    totalSpent,
+    DEFAULT_BILLING_START_DAY,
+    today
+  );
+
+  if (!mounted) {
+    return (
+      <div className="space-y-4">
+        {/* スケルトンローダー */}
+        <div className="h-40 animate-pulse rounded-2xl bg-muted/30" />
+        <div className="h-3 animate-pulse rounded-full bg-muted/20" />
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted/20" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="space-y-5">
+      {/* メイン予算カード */}
+      <BudgetCard summary={summary} />
+
+      {/* クイック統計 */}
+      <QuickStats
+        summary={summary}
+        billingStartDay={DEFAULT_BILLING_START_DAY}
+        todaySpent={todaySpent}
+      />
+
+      {/* 直近の支出リスト（プレビュー） */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">最近の支出</h2>
+          <a href="/history" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            すべて見る →
+          </a>
+        </div>
+        <div className="space-y-2">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/20" />
+            ))
+          ) : (
+            transactions.slice(0, 5).map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm transition-colors hover:bg-card/80"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium">{t.item_name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t.transaction_date} • {t.ai_psychological_category ? (
+                      <span className="text-emerald-500">
+                        {t.ai_psychological_category === 'stress_relief' && 'ストレス発散'}
+                        {t.ai_psychological_category === 'vanity' && '見栄・承認欲求'}
+                        {t.ai_psychological_category === 'habit' && '習慣・惰性'}
+                        {t.ai_psychological_category === 'reward' && 'ご褒美'}
+                        {t.ai_psychological_category === 'self_investment' && '自己投資'}
+                        {t.ai_psychological_category === 'necessity' && '必要経費'}
+                      </span>
+                    ) : '未分類'}
+                  </p>
+                </div>
+                <span className="ml-3 text-sm font-bold text-red-400">
+                  -{new Intl.NumberFormat('ja-JP').format(t.amount)}円
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 支出入力FAB */}
+      <div className="fixed bottom-20 right-4 z-40 max-w-md">
+        <Button
+          size="lg"
+          className="h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 hover:from-emerald-600 hover:to-teal-700 hover:shadow-xl hover:shadow-emerald-500/40 transition-all duration-200"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
+
+      {/* 支出入力フォーム */}
+      {showForm && (
+        <TransactionForm
+          onClose={() => setShowForm(false)}
+          onSuccess={() => {
+            setShowForm(false);
+            fetchTransactions();
+          }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
     </div>
   );
 }

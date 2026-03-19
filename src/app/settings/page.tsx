@@ -1,0 +1,161 @@
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Save, Info } from 'lucide-react';
+
+export default function SettingsPage() {
+  const [budget, setBudget] = useState(200000);
+  const [billingDay, setBillingDay] = useState(25);
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseKey, setSupabaseKey] = useState('');
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    // 将来的にはSupabaseやEnvに保存
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* 予算設定 */}
+      <Card className="border-border/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">💰 予算設定</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="monthly-budget" className="text-xs text-muted-foreground">
+              月間予算（円）
+            </Label>
+            <div className="relative mt-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">¥</span>
+              <Input
+                id="monthly-budget"
+                type="number"
+                className="pl-7 text-lg font-bold"
+                value={budget}
+                onChange={(e) => setBudget(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="billing-day" className="text-xs text-muted-foreground">
+              締め日（毎月何日）
+            </Label>
+            <Input
+              id="billing-day"
+              type="number"
+              min={1}
+              max={28}
+              className="mt-1"
+              value={billingDay}
+              onChange={(e) => setBillingDay(Number(e.target.value))}
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              ※ 1〜28日の範囲で設定してください
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* API設定 */}
+      <Card className="border-border/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">🔑 外部サービス設定</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg bg-blue-500/10 p-3">
+            <div className="flex items-start gap-2">
+              <Info className="mt-0.5 h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <p className="text-[10px] text-blue-400">
+                これらの設定は .env.local ファイルで管理されます。
+                ここに入力した値はデモ用の表示であり、実際のサービス連携には .env.local の更新が必要です。
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground">Supabase URL</Label>
+            <Input
+              className="mt-1 font-mono text-xs"
+              placeholder="https://xxxxx.supabase.co"
+              value={supabaseUrl}
+              onChange={(e) => setSupabaseUrl(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Supabase Anon Key</Label>
+            <Input
+              className="mt-1 font-mono text-xs"
+              type="password"
+              placeholder="eyJhbGci..."
+              value={supabaseKey}
+              onChange={(e) => setSupabaseKey(e.target.value)}
+            />
+          </div>
+
+          <Separator className="my-2" />
+
+          <div>
+            <Label className="text-xs text-muted-foreground">OpenAI API Key</Label>
+            <Input
+              className="mt-1 font-mono text-xs"
+              type="password"
+              placeholder="sk-..."
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              未設定時はルールベースの自動分類が使用されます
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* プラン情報 */}
+      <Card className="border-border/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">📋 プラン情報</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">現在のプラン</p>
+              <p className="text-xs text-muted-foreground">ベーシック機能をご利用いただけます</p>
+            </div>
+            <Badge className="bg-emerald-500/20 text-emerald-500 border-0">Free</Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 保存ボタン */}
+      <Button
+        onClick={handleSave}
+        className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 font-semibold text-white hover:from-emerald-600 hover:to-teal-700"
+        size="lg"
+      >
+        {saved ? (
+          <>✓ 保存しました</>
+        ) : (
+          <>
+            <Save className="mr-2 h-4 w-4" />
+            設定を保存
+          </>
+        )}
+      </Button>
+
+      {/* バージョン情報 */}
+      <div className="pb-4 text-center">
+        <p className="text-[10px] text-muted-foreground">MindWallet v0.1.0</p>
+      </div>
+    </div>
+  );
+}
