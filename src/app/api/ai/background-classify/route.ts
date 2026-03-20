@@ -53,8 +53,9 @@ export async function POST(request: Request) {
       aiReason = fallback.reason;
     } else {
       console.log('[AI Check] Calling OpenAI...');
-      const openai = new OpenAI({ apiKey });
-      const prompt = `以下の支出情報を分析し、背後にある心理要因を推測してください。
+      try {
+        const openai = new OpenAI({ apiKey });
+        const prompt = `以下の支出情報を分析し、背後にある心理要因を推測してください。
 
 【支出情報】
 品名（または内容）: ${itemName}
@@ -78,23 +79,30 @@ export async function POST(request: Request) {
 "reason": "短い理由"
 }`;
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.7,
-      });
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          temperature: 0.7,
+        });
 
-      console.log('[AI Check] OpenAI returned successfully');
+        console.log('[AI Check] OpenAI returned successfully');
 
-      const content = response.choices[0].message.content;
-      if (content) {
-        const result = JSON.parse(content);
-        aiPsychologicalCategory = result.category;
-        aiReason = result.reason;
-        console.log('[AI Check] parsed result:', result);
-      } else {
-        throw new Error('No content from OpenAI');
+        const content = response.choices[0].message.content;
+        if (content) {
+          const result = JSON.parse(content);
+          aiPsychologicalCategory = result.category;
+          aiReason = result.reason;
+          console.log('[AI Check] parsed result:', result);
+        } else {
+          throw new Error('No content from OpenAI');
+        }
+      } catch (aiError: any) {
+        console.error('[AI Check] OpenAI API Error (quota exceeded, etc):', aiError?.message || aiError);
+        console.log('[AI Check] Gracefully falling back to rule-based logic');
+        const fallback = getFallbackCategory(itemName, generalCategory);
+        aiPsychologicalCategory = fallback.cat;
+        aiReason = fallback.reason + ' (AI利用制限のため独自の自動判定)';
       }
     }
 
