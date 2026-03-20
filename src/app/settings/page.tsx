@@ -13,9 +13,6 @@ import SubscriptionManager from '@/components/settings/SubscriptionManager';
 export default function SettingsPage() {
   const [budget, setBudget] = useState(200000);
   const [billingDay, setBillingDay] = useState(25);
-  const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [supabaseKey, setSupabaseKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -119,59 +116,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* API設定 */}
-      <Card className="border-border/40">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">🔑 外部サービス設定</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg bg-blue-500/10 p-3">
-            <div className="flex items-start gap-2">
-              <Info className="mt-0.5 h-3.5 w-3.5 text-blue-400 shrink-0" />
-              <p className="text-[10px] text-blue-400">
-                これらの設定は .env.local ファイルで管理されます。
-                ここに入力した値はデモ用の表示であり、実際のサービス連携には .env.local の更新が必要です。
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-xs text-muted-foreground">Supabase URL</Label>
-            <Input
-              className="mt-1 font-mono text-xs"
-              placeholder="https://xxxxx.supabase.co"
-              value={supabaseUrl}
-              onChange={(e) => setSupabaseUrl(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Supabase Anon Key</Label>
-            <Input
-              className="mt-1 font-mono text-xs"
-              type="password"
-              placeholder="eyJhbGci..."
-              value={supabaseKey}
-              onChange={(e) => setSupabaseKey(e.target.value)}
-            />
-          </div>
-
-          <Separator className="my-2" />
-
-          <div>
-            <Label className="text-xs text-muted-foreground">OpenAI API Key</Label>
-            <Input
-              className="mt-1 font-mono text-xs"
-              type="password"
-              placeholder="sk-..."
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-            />
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              未設定時はルールベースの自動分類が使用されます
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* サブスクリプション管理 */}
       <SubscriptionManager />

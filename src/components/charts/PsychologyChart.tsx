@@ -62,15 +62,17 @@ export default function PsychologyChart({ transactions }: PsychologyChartProps) 
     });
 
     return Object.entries(psychMap)
-      .filter(([key]) => key !== 'unknown' && key in PSYCHOLOGICAL_CATEGORIES)
+      .filter(([key]) => key in PSYCHOLOGICAL_CATEGORIES || key === 'unknown')
       .map(([key, { amount, count }]) => {
-        const meta = PSYCHOLOGICAL_CATEGORIES[key as PsychologicalCategory];
+        const isUnknown = key === 'unknown';
+        const meta = isUnknown ? null : PSYCHOLOGICAL_CATEGORIES[key as PsychologicalCategory];
+        
         return {
-          name: meta?.label || key,
+          name: isUnknown ? '未分類・分析中' : (meta?.label || key),
           value: amount,
           count,
-          color: meta?.color || '#78716c',
-          emoji: meta?.emoji || '❓',
+          color: isUnknown ? '#94a3b8' : (meta?.color || '#94a3b8'),
+          emoji: isUnknown ? '⏳' : (meta?.emoji || '❔'),
           key,
           percent: total > 0 ? Math.round((amount / total) * 100) : 0,
         };
@@ -88,9 +90,9 @@ export default function PsychologyChart({ transactions }: PsychologyChartProps) 
     );
   }
 
-  // 必要経費を除いた「浪費」の合計
+  // 必要経費と未分類を除いた「浪費」の合計
   const wasteTotal = chartData
-    .filter((d) => d.key !== 'necessity')
+    .filter((d) => d.key !== 'necessity' && d.key !== 'unknown')
     .reduce((sum, d) => sum + d.value, 0);
   const totalAll = chartData.reduce((sum, d) => sum + d.value, 0);
   const wastePercent = totalAll > 0 ? Math.round((wasteTotal / totalAll) * 100) : 0;

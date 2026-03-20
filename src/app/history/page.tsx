@@ -16,7 +16,10 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export default function HistoryPage() {
   const [mounted, setMounted] = useState(false);
 
-  const { data, error, isLoading } = useSWR('/api/dashboard/init', fetcher, { revalidateOnFocus: true });
+  const { data, error, isLoading } = useSWR('/api/dashboard/init', fetcher, { 
+    revalidateOnFocus: true,
+    refreshInterval: 5000
+  });
 
   useEffect(() => {
     setMounted(true);

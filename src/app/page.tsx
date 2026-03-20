@@ -19,7 +19,10 @@ export default function HomePage() {
   const [showForm, setShowForm] = useState(false);
 
   // SWRによるデータ取得（キャッシュと再検証）
-  const { data, error, isLoading, mutate } = useSWR('/api/dashboard/init', fetcher, { revalidateOnFocus: true });
+  const { data, error, isLoading, mutate } = useSWR('/api/dashboard/init', fetcher, { 
+    revalidateOnFocus: true,
+    refreshInterval: 5000 // 5秒ごとにバックグラウンド取得し、AI分析結果が即時反映されるようにする
+  });
 
   useEffect(() => {
     setMounted(true);
