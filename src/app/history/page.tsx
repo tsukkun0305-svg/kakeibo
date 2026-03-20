@@ -23,6 +23,7 @@ export default function HistoryPage() {
     refreshInterval: 5000
   });
 
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string, itemName: string) => {
@@ -75,6 +76,14 @@ export default function HistoryPage() {
 
   const transactions: Transaction[] = data?.transactions || [];
   
+  // 保留データの統計
+  const pendingItems = transactions.filter(t => t.is_pending);
+  const pendingCount = pendingItems.length;
+  const pendingTotal = pendingItems.reduce((sum, t) => sum + t.amount, 0);
+
+  // 表示用データのフィルタリング
+  const displayTransactions = showOnlyPending ? pendingItems : transactions;
+
   // SWRでロード中はスケルトンを表示
   const period = data?.period || {
     startDate: formatDateToISO(new Date()),
@@ -82,7 +91,7 @@ export default function HistoryPage() {
   };
 
   // 日付ごとにグループ化
-  const groupedByDate = transactions.reduce<Record<string, Transaction[]>>((acc, t) => {
+  const groupedByDate = displayTransactions.reduce<Record<string, Transaction[]>>((acc, t) => {
     if (!acc[t.transaction_date]) acc[t.transaction_date] = [];
     acc[t.transaction_date].push(t);
     return acc;
@@ -107,20 +116,46 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-5">
-      {/* サマリー */}
-      <Card className="border-border/40 bg-card/50">
-        <CardContent className="flex items-center justify-between p-4">
-          <div>
-            <p className="text-xs text-muted-foreground">
-              {typeof period.startDate === 'string' ? period.startDate.slice(5) : ''} 〜 {typeof period.endDate === 'string' ? period.endDate.slice(5) : ''}
+      {/* サマリー & フィルター */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Card className="border-border/40 bg-card/50 overflow-hidden relative">
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                {typeof period.startDate === 'string' ? period.startDate.slice(5) : ''} 〜 {typeof period.endDate === 'string' ? period.endDate.slice(5) : ''}
+              </p>
+              <p className="text-sm font-bold opacity-80">今月の支出合計</p>
+            </div>
+            <p className="text-xl font-extrabold text-red-100 bg-red-500/80 px-3 py-1 rounded-lg">
+              {formatCurrency(totalSpent)}
             </p>
-            <p className="text-lg font-bold">今月の支出合計</p>
-          </div>
-          <p className="text-2xl font-extrabold text-red-400">
-            {formatCurrency(totalSpent)}
-          </p>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card className={`border-border/40 transition-colors duration-300 ${showOnlyPending ? 'bg-orange-500/10 border-orange-200' : 'bg-card/50'}`}>
+          <CardContent className="flex items-center justify-between p-3 px-4">
+            <div className="flex items-center gap-3">
+              <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-colors ${showOnlyPending ? 'bg-orange-500 text-white' : 'bg-muted/30 text-muted-foreground'}`}>
+                <Clock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">保留中</p>
+                <p className="text-sm font-bold">
+                  {pendingCount}件 / <span className="text-orange-500">{formatCurrency(pendingTotal)}</span>
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={showOnlyPending ? "default" : "outline"}
+              size="sm"
+              className={`h-8 rounded-full text-[10px] font-bold ${showOnlyPending ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
+              onClick={() => setShowOnlyPending(!showOnlyPending)}
+            >
+              {showOnlyPending ? 'すべて表示' : '保留のみ表示'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 日付ごとの支出リスト */}
       {sortedDates.map((date) => {
@@ -223,12 +258,23 @@ export default function HistoryPage() {
         );
       })}
 
-      {transactions.length === 0 && !isLoading && (
+      {displayTransactions.length === 0 && !isLoading && (
         <div className="py-20 text-center flex flex-col items-center gap-3">
           <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center">
-            <Trash2 className="h-8 w-8 text-muted-foreground/40" />
+            {showOnlyPending ? (
+              <Clock className="h-8 w-8 text-orange-400/40" />
+            ) : (
+              <Trash2 className="h-8 w-8 text-muted-foreground/40" />
+            )}
           </div>
-          <p className="text-sm text-muted-foreground font-medium">支出データがありません</p>
+          <p className="text-sm text-muted-foreground font-medium">
+            {showOnlyPending ? '保留中のデータはありません' : '支出データがありません'}
+          </p>
+          {showOnlyPending && (
+            <Button variant="link" size="sm" onClick={() => setShowOnlyPending(false)}>
+              すべての履歴を表示する
+            </Button>
+          )}
         </div>
       )}
     </div>
