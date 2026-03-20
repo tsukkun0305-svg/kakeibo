@@ -90,39 +90,50 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
 
     setSaving(true);
     try {
-      // 1件ずつ保存（バックグラウンドAI分類も走る）
-      for (const item of selectedOnes) {
-        const res = await fetch('/api/transactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transaction_date: item.date,
-            item_name: item.item_name,
-            amount: item.amount,
-            general_category: 'other', // 最初はその他で登録
-          }),
-        });
+      // 並列で保存を実行（高速化とタイムアウト対策）
+      await Promise.all(
+        selectedOnes.map(async (item) => {
+          // 金額のクレンジング（カンマや¥マークを除去して数値化）
+          const cleanAmount = typeof item.amount === 'string' 
+            ? parseInt((item.amount as string).replace(/[^0-9]/g, '')) || 0
+            : item.amount;
 
-        if (res.ok) {
-          const { transaction } = await res.json();
-          // バックグラウンドAI呼び出し（HomePageと同様のフローを再現）
-          fetch('/api/ai/background-classify', {
+          const res = await fetch('/api/transactions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              transactionId: transaction.id,
-              itemName: transaction.item_name,
-              amount: transaction.amount,
-              generalCategory: transaction.general_category,
+              transaction_date: item.date,
+              item_name: item.item_name,
+              amount: cleanAmount,
+              general_category: 'other',
             }),
-          }).catch(console.error);
-        }
-      }
+          });
+
+          if (res.ok) {
+            const { transaction } = await res.json();
+            // バックグラウンドAI分類をトリガー（待機しない）
+            fetch('/api/ai/background-classify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                transactionId: transaction.id,
+                itemName: transaction.item_name,
+                amount: transaction.amount,
+                generalCategory: transaction.general_category,
+              }),
+            }).catch(console.error);
+          } else {
+            const errData = await res.json();
+            console.error('Save failed for item:', item.item_name, errData);
+          }
+        })
+      );
+      
       onSuccess();
       onClose();
     } catch (err) {
-      console.error(err);
-      alert('一部の保存に失敗しました。');
+      console.error('Bulk save error:', err);
+      alert('保存中にエラーが発生しました。一部の項目が保存されていない可能性があります。');
     } finally {
       setSaving(false);
     }
