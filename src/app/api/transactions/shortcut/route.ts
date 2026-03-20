@@ -38,9 +38,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { amount, item_name, general_category, memo } = body;
 
-    if (!amount || !item_name) {
-      return NextResponse.json({ error: 'Missing required fields (amount, item_name)' }, { status: 400 });
+    if (!amount) {
+      return NextResponse.json({ error: 'Missing required fields (amount)' }, { status: 400 });
     }
+
+    // 店舗名が取得できない場合のフォールバック
+    const finalItemName = item_name || 'Apple Pay 支払い';
 
     // 4. トランザクションの作成
     const transactionDate = new Date().toISOString().split('T')[0];
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
         user_id: userId,
         transaction_date: transactionDate,
         amount: Number(amount),
-        item_name,
+        item_name: finalItemName,
         general_category: general_category || 'other',
         user_memo: memo || 'ショートカットからの自動入力',
       })
