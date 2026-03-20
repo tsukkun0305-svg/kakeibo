@@ -110,18 +110,8 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
           });
 
           if (res.ok) {
-            const { transaction } = await res.json();
-            // バックグラウンドAI分類をトリガー（待機しない）
-            fetch('/api/ai/background-classify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                transactionId: transaction.id,
-                itemName: transaction.item_name,
-                amount: transaction.amount,
-                generalCategory: transaction.general_category,
-              }),
-            }).catch(console.error);
+            // 一括登録時は個別のAI自動分類（心理分析）をスキップするように変更
+            // ユーザーの要望により、画像からの登録はシンプルにDB保存のみ行う
           } else {
             const errData = await res.json();
             console.error('Save failed for item:', item.item_name, errData);
