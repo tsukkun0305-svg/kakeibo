@@ -74,9 +74,9 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
     }
   };
 
-  const handleToggleSelect = (id: string) => {
+  const handleUpdate = (id: string, field: keyof ScannedTransaction, value: any) => {
     setTransactions(prev => prev.map(t => 
-      t.id === id ? { ...t, selected: !t.selected } : t
+      t.id === id ? { ...t, [field]: value } : t
     ));
   };
 
@@ -180,27 +180,46 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
               {transactions.map((tx) => (
                 <div 
                   key={tx.id} 
-                  className={`flex items-center gap-4 px-5 py-4 transition-colors ${tx.selected ? 'bg-white' : 'bg-gray-50/50'}`}
+                  className={`flex items-start gap-4 px-5 py-4 transition-colors ${tx.selected ? 'bg-white' : 'bg-gray-50/50'}`}
                 >
                   <button 
-                    onClick={() => handleToggleSelect(tx.id)}
-                    className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                    onClick={() => handleUpdate(tx.id, 'selected', !tx.selected)}
+                    className={`mt-1.5 h-6 w-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-all ${
                       tx.selected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300'
                     }`}
                   >
                     {tx.selected && <Check className="h-4 w-4" />}
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-0.5">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{tx.item_name}</p>
-                      <p className="text-sm font-bold text-gray-900">¥{tx.amount.toLocaleString()}</p>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        value={tx.item_name}
+                        onChange={(e) => handleUpdate(tx.id, 'item_name', e.target.value)}
+                        className="h-8 text-sm font-semibold bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-emerald-500 rounded-none px-0 shadow-none focus-visible:ring-0"
+                      />
+                      <div className="flex items-center text-sm font-bold text-gray-900 border-b border-transparent">
+                        <span className="mr-1">¥</span>
+                        <input
+                          type="number"
+                          value={tx.amount}
+                          onChange={(e) => handleUpdate(tx.id, 'amount', parseInt(e.target.value) || 0)}
+                          className="w-20 bg-transparent border-0 focus:outline-none text-right"
+                        />
+                      </div>
                     </div>
-                    <p className="text-[10px] text-gray-400 font-mono">{tx.date}</p>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date"
+                        value={tx.date}
+                        onChange={(e) => handleUpdate(tx.id, 'date', e.target.value)}
+                        className="text-[10px] text-gray-400 font-mono bg-transparent border-0 focus:outline-none"
+                      />
+                    </div>
                   </div>
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="text-gray-300 hover:text-red-500"
+                    className="mt-1 text-gray-300 hover:text-red-500"
                     onClick={() => handleRemove(tx.id)}
                   >
                     <Trash2 className="h-4 w-4" />
