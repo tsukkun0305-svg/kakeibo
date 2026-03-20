@@ -16,7 +16,10 @@ export async function POST(request: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel(
+      { model: "gemini-1.5-flash" },
+      { apiVersion: "v1" }
+    );
 
     const prompt = `これらの画像はすべて、同一または一連のクレジットカード利用明細（スクリーンショット）です。
 すべての画像から「日付」「品名（店舗名）」「金額」のリストを重複なくすべて抽出してください。
