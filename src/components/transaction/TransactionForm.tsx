@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { GENERAL_CATEGORIES, PSYCHOLOGICAL_CATEGORIES } from '@/lib/constants';
 import { GeneralCategory, PsychologicalCategory, TransactionFormData } from '@/types';
@@ -45,18 +46,23 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
   const [error, setError] = useState('');
 
   const handleAnalyze = async () => {
-    if (!formData.amount || !formData.item_name) {
-      setError('金額と品名を入力してください');
+    if (!formData.amount || formData.amount <= 0) {
+      setError('金額を入力してください');
       return;
     }
     setError('');
+    
+    // DBのカラム制約（item_nameが必須など）に対応するため、未入力時はカテゴリ名やメモを代入します
+    const effectiveItemName = formData.item_name || formData.user_memo || GENERAL_CATEGORIES[formData.general_category];
+    const submitData = { ...formData, item_name: effectiveItemName };
+
     setStep('analyzing');
 
     try {
       const res = await fetch('/api/ai/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       });
 
       if (!res.ok) throw new Error('AI分類に失敗しました');
@@ -81,6 +87,7 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          item_name: formData.item_name || formData.user_memo || GENERAL_CATEGORIES[formData.general_category],
           amount: Number(formData.amount),
           ai_psychological_category: aiResult?.ai_psychological_category || null,
           ai_reason: aiResult?.ai_reason || null,
@@ -111,17 +118,22 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* フォームパネル */}
-      <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl border border-border/40 bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+      <div className="relative w-full max-w-md rounded-[32px] sm:rounded-[36px] bg-background p-6 shadow-2xl animate-in slide-in-from-bottom duration-300 mx-2 mb-2 sm:mb-0">
         {/* ヘッダー */}
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-center relative">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="absolute left-0 h-10 w-10 rounded-full border-border/50 bg-background/50 hover:bg-muted" 
+            onClick={onClose}
+          >
+            <X className="h-5 w-5 text-cyan-600" />
+          </Button>
           <h2 className="text-lg font-bold">
-            {step === 'input' && '支出を記録'}
+            {step === 'input' && '使ったお金を記録'}
             {step === 'analyzing' && 'AI分析中...'}
             {step === 'result' && '分析結果'}
           </h2>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* エラー表示 */}
@@ -133,94 +145,125 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
 
         {/* STEP 1: 入力フォーム */}
         {step === 'input' && (
-          <div className="space-y-4">
-            {/* 金額 */}
-            <div>
-              <Label htmlFor="amount" className="text-xs text-muted-foreground">金額（円）</Label>
-              <div className="relative mt-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">¥</span>
+          <div className="space-y-6">
+            {/* 特大金額入力 */}
+            <div className="flex flex-col items-center">
+              <div className="relative flex w-full items-center justify-center border-b border-border/40 pb-4">
+                <span className="absolute left-0 text-4xl font-semibold text-muted-foreground/60">¥</span>
                 <Input
-                  id="amount"
                   type="number"
-                  placeholder="1000"
-                  className="pl-7 text-lg font-bold"
+                  placeholder="0"
                   value={formData.amount || ''}
                   onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+                  className="h-20 w-full border-none bg-transparent p-0 text-right text-[64px] font-black tracking-tighter shadow-none focus-visible:ring-0 outline-none"
                 />
               </div>
             </div>
 
-            {/* 品名 */}
-            <div>
-              <Label htmlFor="item_name" className="text-xs text-muted-foreground">買ったもの</Label>
-              <Input
-                id="item_name"
-                placeholder="例: コンビニでコーヒー"
-                className="mt-1"
-                value={formData.item_name}
-                onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+            {/* スライダー */}
+            <div className="px-1">
+              <Slider
+                value={[formData.amount || 0]}
+                max={10000}
+                step={10}
+                onValueChange={(vals) => {
+                  const val = Array.isArray(vals) ? vals[0] : vals;
+                  if (typeof val === 'number') {
+                    setFormData({ ...formData, amount: val });
+                  }
+                }}
+                className="py-4"
               />
             </div>
 
-            {/* 日付と費目 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="date" className="text-xs text-muted-foreground">日付</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  className="mt-1"
-                  value={formData.transaction_date}
-                  onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">費目</Label>
+            {/* クイック入力ボタン */}
+            <div className="flex gap-3">
+              {[10, 50, 100, 500].map((val) => (
+                <Button
+                  key={val}
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, amount: (prev.amount || 0) + val }))}
+                  className="flex-1 rounded-full bg-[#E5F7F8] text-[#1E8B8E] hover:bg-[#D5EZEF] font-bold h-12 text-lg shadow-sm"
+                >
+                  +{val}
+                </Button>
+              ))}
+            </div>
+
+            {/* iOS風リスト型入力欄 */}
+            <div className="mt-8 rounded-3xl border border-border/40 bg-card/60 px-5 shadow-sm">
+              
+              {/* カテゴリ */}
+              <div className="flex items-center justify-between border-b border-border/40 py-4">
+                <span className="text-base font-medium">カテゴリ</span>
                 <Select
                   value={formData.general_category}
                   onValueChange={(v) => setFormData({ ...formData, general_category: v as GeneralCategory })}
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="h-auto border-none bg-transparent p-0 text-right text-base focus:ring-0 flex-row-reverse gap-2 font-semibold shadow-none text-[#E87B57] hover:bg-transparent">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-2xl">
                     {Object.entries(GENERAL_CATEGORIES).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>
-                        {label}
+                      <SelectItem key={key} value={key} className="rounded-xl">
+                        <div className="flex items-center gap-2">
+                          {key === 'food' && '🍴 '}
+                          {key === 'daily' && '🛒 '}
+                          {key === 'hobby' && '🎮 '}
+                          {key === 'social' && '🥂 '}
+                          {key === 'transport' && '🚃 '}
+                          {key === 'other' && '📦 '}
+                          {label}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* 日付 */}
+              <div className="flex items-center justify-between border-b border-border/40 py-4">
+                <span className="text-base font-medium">使った日</span>
+                <div className="flex flex-1 items-center justify-end overflow-hidden pl-4">
+                  <Input
+                    type="date"
+                    value={formData.transaction_date}
+                    onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
+                    className="h-auto w-auto border-none bg-transparent p-0 text-right text-base focus-visible:ring-0 outline-none shadow-none text-muted-foreground font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* メモ（もとの品名入力を統合） */}
+              <div className="py-4">
+                <Label htmlFor="memo" className="sr-only">メモ (任意)</Label>
+                <Input
+                  id="memo"
+                  placeholder="メモ または 品名 (任意)"
+                  value={formData.user_memo}
+                  onChange={(e) => setFormData({ ...formData, user_memo: e.target.value })}
+                  className="h-auto border-none bg-transparent p-0 text-base focus-visible:ring-0 outline-none shadow-none text-muted-foreground placeholder:text-muted-foreground/40 font-medium w-full"
+                />
+                <p className="mt-2 text-[10px] text-muted-foreground/60 leading-tight">
+                  💡 買ったものや「つい…」などの気持ちを書くと、AIがより正確に分析します
+                </p>
+              </div>
             </div>
 
-            {/* 気持ち・メモ */}
-            <div>
-              <Label htmlFor="memo" className="text-xs text-muted-foreground">
-                その時の気持ち・状況（任意）
-              </Label>
-              <Textarea
-                id="memo"
-                placeholder="例: 仕事で疲れてつい..."
-                className="mt-1 resize-none"
-                rows={2}
-                value={formData.user_memo}
-                onChange={(e) => setFormData({ ...formData, user_memo: e.target.value })}
-              />
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                💡 気持ちを書くとAIがより正確に浪費パターンを分析できます
-              </p>
+            {/* 保存ボタン */}
+            <div className="pt-8">
+              <Button
+                onClick={handleAnalyze}
+                disabled={!formData.amount || formData.amount <= 0}
+                className={`h-16 w-full rounded-full text-xl font-bold transition-all duration-300 ${
+                  !formData.amount || formData.amount <= 0
+                    ? 'bg-muted text-muted-foreground opacity-50'
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl hover:shadow-2xl hover:-translate-y-1'
+                }`}
+              >
+                保存
+              </Button>
             </div>
-
-            {/* 送信ボタン */}
-            <Button
-              onClick={handleAnalyze}
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 font-semibold text-white hover:from-emerald-600 hover:to-teal-700"
-              size="lg"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              AIで分析して記録
-            </Button>
           </div>
         )}
 
