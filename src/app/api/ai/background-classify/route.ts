@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel(
-          { model: "gemini-2.0-flash" },
+          { model: "gemini-flash-latest" },
           { apiVersion: "v1beta" }
         );
         const prompt = `以下の支出情報を分析し、背後にある心理要因を推測してください。
