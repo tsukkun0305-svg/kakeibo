@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BudgetCard from '@/components/dashboard/BudgetCard';
 import QuickStats from '@/components/dashboard/QuickStats';
 import TransactionForm from '@/components/transaction/TransactionForm';
+import StatementScanner from '@/components/transaction/StatementScanner';
 import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { getBudgetSummary } from '@/utils/budget';
 import { DEFAULT_BILLING_START_DAY, DEFAULT_MONTHLY_BUDGET } from '@/lib/constants';
@@ -17,6 +18,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   // SWRによるデータ取得（キャッシュと再検証）
   const { data, error, isLoading, mutate } = useSWR('/api/dashboard/init', fetcher, { 
@@ -128,7 +130,15 @@ export default function HomePage() {
       </div>
 
       {/* 支出入力FAB */}
-      <div className="fixed bottom-20 right-4 z-40 max-w-md">
+      <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
+        <Button
+          size="lg"
+          variant="outline"
+          className="h-12 w-12 rounded-full bg-white/80 backdrop-blur-md shadow-lg border-emerald-100 text-emerald-600 hover:bg-emerald-50 transition-all"
+          onClick={() => setShowScanner(true)}
+        >
+          <Camera className="h-5 w-5" />
+        </Button>
         <Button
           size="lg"
           className="h-14 w-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 hover:from-emerald-600 hover:to-teal-700 hover:shadow-xl hover:shadow-emerald-500/40 transition-all duration-200"
@@ -137,6 +147,16 @@ export default function HomePage() {
           <Plus className="h-6 w-6" />
         </Button>
       </div>
+
+      {/* 明細スキャンモーダル */}
+      {showScanner && (
+        <StatementScanner
+          onClose={() => setShowScanner(false)}
+          onSuccess={() => {
+            mutate();
+          }}
+        />
+      )}
 
       {/* 支出入力フォーム */}
       {showForm && (
