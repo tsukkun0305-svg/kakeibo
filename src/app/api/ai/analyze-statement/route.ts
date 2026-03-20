@@ -17,8 +17,8 @@ export async function POST(request: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel(
-      { model: "gemini-1.5-flash" },
-      { apiVersion: "v1" }
+      { model: "gemini-2.0-flash" },
+      { apiVersion: "v1beta" }
     );
 
     const prompt = `これらの画像はすべて、同一または一連のクレジットカード利用明細（スクリーンショット）です。
