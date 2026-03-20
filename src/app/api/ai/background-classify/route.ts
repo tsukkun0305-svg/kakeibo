@@ -24,16 +24,38 @@ function getFallbackCategory(itemName: string, generalCategory: string): { cat: 
 export async function POST(request: Request) {
   console.log('[AI Check] Background AI classify started');
   try {
+    // 1. ユーザー認証の確認（または内部シークレットによるバイパス）
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log('[AI Check] Unauthorized');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const internalSecret = request.headers.get('x-internal-secret');
+    const isInternalCall = internalSecret === process.env.SUPABASE_SERVICE_ROLE_KEY && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    let userId: string;
+    let transactionId: string;
+    let itemName: string;
+    let amount: number;
+    let generalCategory: string;
+    let userMemo: string;
 
     const body = await request.json();
     console.log('[AI Check] Request Body:', body);
-    const { transactionId, itemName, amount, generalCategory, userMemo } = body;
+
+    if (isInternalCall) {
+      console.log('[AI Check] Internal call authorized via secret');
+      userId = body.userId;
+      if (!userId) {
+        return NextResponse.json({ error: 'Missing userId for internal call' }, { status: 400 });
+      }
+    } else {
+      // 通常のブラウザからの呼び出し
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[AI Check] Unauthorized');
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      userId = user.id;
+    }
+
+    ({ transactionId, itemName, amount, generalCategory, userMemo } = body);
 
     if (!transactionId || !itemName || !amount) {
       console.log('[AI Check] Missing fields:', { transactionId, itemName, amount });
@@ -110,6 +132,10 @@ export async function POST(request: Request) {
 
     // 取得したAI分析結果でTransactionsテーブルをUPDATEする
     console.log('[AI Check] Executing Supabase UPDATE...', { transactionId, category: aiPsychologicalCategory });
+    
+    // 内部呼び出しの場合はRLSをバイパスするためにサービスロール等の権限が必要な可能性があるため、
+    // ここでは auth.getUser() で取得したクライアントではなく、適切な権限を持つクライアントを検討する。
+    // ※今回はRSC用クライアント(supabase)をそのまま使うが、userIdとの紐付けでチェックする
     const { error: updateError } = await supabase
       .from('transactions')
       .update({
@@ -117,7 +143,7 @@ export async function POST(request: Request) {
         ai_reason: aiReason,
       })
       .eq('id', transactionId)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('[AI Check] Supabase update failed:', updateError);

@@ -69,9 +69,13 @@ export async function POST(request: Request) {
     const host = request.headers.get('host');
     fetch(`${protocol}://${host}/api/ai/background-classify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+      },
       body: JSON.stringify({
         transactionId: transaction.id,
+        userId: userId, // 追記
         itemName: transaction.item_name,
         amount: transaction.amount,
         generalCategory: transaction.general_category,
