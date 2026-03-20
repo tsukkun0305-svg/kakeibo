@@ -39,6 +39,11 @@ export default function SettingsPage() {
     fetchSettings();
   }, []);
 
+  const handleGenerateToken = () => {
+    const newToken = crypto.randomUUID().replace(/-/g, '');
+    setShortcutToken(newToken);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -50,6 +55,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           monthly_budget: budget,
           billing_start_day: billingDay,
+          shortcut_token: shortcutToken,
         }),
       });
 
@@ -57,7 +63,7 @@ export default function SettingsPage() {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       } else {
-        alert('保存に失敗しました。締め日が1〜28の範囲内かご確認ください。');
+        alert('保存に失敗しました。');
       }
     } catch (err) {
       console.error(err);
@@ -134,25 +140,37 @@ export default function SettingsPage() {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">パーソナルAPIトークン</Label>
-            <div className="mt-1 flex items-center gap-2">
-              <Input
-                readOnly
-                className="font-mono text-xs bg-muted/30"
-                value={shortcutToken || 'トークン読込中...'}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  if (shortcutToken) {
+            <div className="mt-1 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  placeholder="トークンを生成してください"
+                  className="font-mono text-xs bg-muted/30"
+                  value={shortcutToken}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateToken}
+                >
+                  {shortcutToken ? '再生成' : '生成'}
+                </Button>
+              </div>
+              {shortcutToken && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full h-8 text-[10px] font-bold"
+                  onClick={() => {
                     navigator.clipboard.writeText(shortcutToken);
                     alert('トークンをコピーしました');
-                  }
-                }}
-              >
-                コピー
-              </Button>
+                  }}
+                >
+                  トークンをコピー
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

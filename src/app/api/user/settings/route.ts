@@ -37,7 +37,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { monthly_budget, billing_start_day } = body;
+    const { monthly_budget, billing_start_day, shortcut_token } = body;
 
     // バリデーション
     if (monthly_budget === undefined || billing_start_day === undefined) {
@@ -61,12 +61,17 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const updateData: any = {
+      monthly_budget,
+      billing_start_day,
+    };
+    if (shortcut_token !== undefined) {
+      updateData.shortcut_token = shortcut_token;
+    }
+
     const { data, error } = await supabase
       .from('users')
-      .update({
-        monthly_budget,
-        billing_start_day,
-      })
+      .update(updateData)
       .eq('id', user.id)
       .select('monthly_budget, billing_start_day, plan_type, shortcut_token')
       .single();
