@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Save, Info } from 'lucide-react';
+import { Save, Info, Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const [budget, setBudget] = useState(200000);
@@ -16,12 +16,64 @@ export default function SettingsPage() {
   const [supabaseKey, setSupabaseKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    // 将来的にはSupabaseやEnvに保存
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/user/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            setBudget(data.settings.monthly_budget);
+            setBillingDay(data.settings.billing_start_day);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load settings', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          monthly_budget: budget,
+          billing_start_day: billingDay,
+        }),
+      });
+
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        alert('保存に失敗しました。締め日が1〜28の範囲内かご確認ください。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -139,10 +191,13 @@ export default function SettingsPage() {
       {/* 保存ボタン */}
       <Button
         onClick={handleSave}
+        disabled={saving || saved}
         className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 font-semibold text-white hover:from-emerald-600 hover:to-teal-700"
         size="lg"
       >
-        {saved ? (
+        {saving ? (
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 保存中...</>
+        ) : saved ? (
           <>✓ 保存しました</>
         ) : (
           <>

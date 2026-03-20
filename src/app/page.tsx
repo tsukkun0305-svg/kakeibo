@@ -17,18 +17,33 @@ export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [userSettings, setUserSettings] = useState<{monthly_budget: number, billing_start_day: number} | null>(null);
 
   const today = new Date();
-  const billingPeriod = getCurrentBillingPeriod(DEFAULT_BILLING_START_DAY, today);
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchSettingsAndTransactions = useCallback(async () => {
     try {
-      const startDate = formatDateToISO(billingPeriod.startDate);
-      const endDate = formatDateToISO(billingPeriod.endDate);
+      setLoading(true);
+      // 1. 設定を取得
+      let budget = DEFAULT_MONTHLY_BUDGET;
+      let startDay = DEFAULT_BILLING_START_DAY;
+      
+      const settingsRes = await fetch('/api/user/settings');
+      if (settingsRes.ok) {
+        const data = await settingsRes.json();
+        if (data.settings) {
+          budget = data.settings.monthly_budget;
+          startDay = data.settings.billing_start_day;
+          setUserSettings({ monthly_budget: budget, billing_start_day: startDay });
+        }
+      }
 
-      const res = await fetch(
-        `/api/transactions?startDate=${startDate}&endDate=${endDate}`
-      );
+      // 2. 設定情報から集計期間を計算してトランザクションを取得
+      const period = getCurrentBillingPeriod(startDay, today);
+      const startDate = formatDateToISO(period.startDate);
+      const endDate = formatDateToISO(period.endDate);
+
+      const res = await fetch(`/api/transactions?startDate=${startDate}&endDate=${endDate}`);
 
       if (res.ok) {
         const data = await res.json();
@@ -45,8 +60,8 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchTransactions();
-  }, [fetchTransactions]);
+    fetchSettingsAndTransactions();
+  }, [fetchSettingsAndTransactions]);
 
   // 今月の総支出を計算
   const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -58,10 +73,13 @@ export default function HomePage() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   // 予算サマリー計算
+  const currentBudget = userSettings?.monthly_budget ?? DEFAULT_MONTHLY_BUDGET;
+  const currentStartDay = userSettings?.billing_start_day ?? DEFAULT_BILLING_START_DAY;
+  
   const summary: BudgetSummary = getBudgetSummary(
-    DEFAULT_MONTHLY_BUDGET,
+    currentBudget,
     totalSpent,
-    DEFAULT_BILLING_START_DAY,
+    currentStartDay,
     today
   );
 
@@ -88,7 +106,7 @@ export default function HomePage() {
       {/* クイック統計 */}
       <QuickStats
         summary={summary}
-        billingStartDay={DEFAULT_BILLING_START_DAY}
+        billingStartDay={currentStartDay}
         todaySpent={todaySpent}
       />
 
@@ -152,7 +170,7 @@ export default function HomePage() {
           onClose={() => setShowForm(false)}
           onSuccess={() => {
             setShowForm(false);
-            fetchTransactions();
+            fetchSettingsAndTransactions();
           }}
         />
       )}
