@@ -7,40 +7,28 @@ import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { DEFAULT_BILLING_START_DAY, PSYCHOLOGICAL_CATEGORIES } from '@/lib/constants';
 import { Transaction, PsychologicalCategory } from '@/types';
 import { formatCurrency } from '@/utils/budget';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 
 
 export default function HistoryPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  const today = new Date();
-  const period = getCurrentBillingPeriod(DEFAULT_BILLING_START_DAY, today);
-
-  const fetchTransactions = useCallback(async () => {
-    try {
-      const startDate = formatDateToISO(period.startDate);
-      const endDate = formatDateToISO(period.endDate);
-      const res = await fetch(`/api/transactions?startDate=${startDate}&endDate=${endDate}`);
-
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data.transactions || []);
-      } else {
-        setTransactions([]);
-      }
-    } catch {
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, error, isLoading } = useSWR('/api/dashboard/init', fetcher, { revalidateOnFocus: true });
 
   useEffect(() => {
     setMounted(true);
-    fetchTransactions();
-  }, [fetchTransactions]);
+  }, []);
+
+  const transactions: Transaction[] = data?.transactions || [];
+  
+  // SWRでロード中はスケルトンを表示
+  const period = data?.period || {
+    startDate: formatDateToISO(new Date()),
+    endDate: formatDateToISO(new Date())
+  };
 
   // 日付ごとにグループ化
   const groupedByDate = transactions.reduce<Record<string, Transaction[]>>((acc, t) => {
@@ -54,7 +42,7 @@ export default function HistoryPage() {
   // 今月の総支出
   const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-  if (!mounted || loading) {
+  if (!mounted || isLoading || (!data && !error)) {
     return (
       <div className="space-y-4">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -71,7 +59,7 @@ export default function HistoryPage() {
         <CardContent className="flex items-center justify-between p-4">
           <div>
             <p className="text-xs text-muted-foreground">
-              {formatDateToISO(period.startDate).slice(5)} 〜 {formatDateToISO(period.endDate).slice(5)}
+              {typeof period.startDate === 'string' ? period.startDate.slice(5) : ''} 〜 {typeof period.endDate === 'string' ? period.endDate.slice(5) : ''}
             </p>
             <p className="text-lg font-bold">今月の支出合計</p>
           </div>

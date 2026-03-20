@@ -45,65 +45,57 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const handleAnalyze = async () => {
+  const handleSaveBackground = async () => {
     if (!formData.amount || formData.amount <= 0) {
       setError('金額を入力してください');
       return;
     }
     setError('');
+    setSaving(true);
     
     // DBのカラム制約（item_nameが必須など）に対応するため、未入力時はカテゴリ名やメモを代入します
     const effectiveItemName = formData.item_name || formData.user_memo || GENERAL_CATEGORIES[formData.general_category];
     const submitData = { ...formData, item_name: effectiveItemName };
 
-    setStep('analyzing');
-
     try {
-      const res = await fetch('/api/ai/classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(submitData),
-      });
-
-      if (!res.ok) throw new Error('AI分類に失敗しました');
-
-      const data = await res.json();
-      setAiResult(data);
-      setStep('result');
-    } catch (err) {
-      console.error('AI classify error:', err);
-      setError('AI分析中にエラーが発生しました。もう一度お試しください。');
-      setStep('input');
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/transactions', {
+      // 1. まずトランザクションをAI分析前（null）として高速にDBに保存する
+      const txRes = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          item_name: formData.item_name || formData.user_memo || GENERAL_CATEGORIES[formData.general_category],
-          amount: Number(formData.amount),
-          ai_psychological_category: aiResult?.ai_psychological_category || null,
-          ai_reason: aiResult?.ai_reason || null,
+          ...submitData,
+          amount: Number(submitData.amount),
+          ai_psychological_category: null,
+          ai_reason: null,
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
+      if (!txRes.ok) {
+        const data = await txRes.json();
         throw new Error(data.error || '保存に失敗しました');
       }
 
+      const { transaction } = await txRes.json();
+
+      // 2. 分析・DB更新APIをバックグラウンド（非同期）で走らせる
+      fetch('/api/ai/background-classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: transaction.id,
+          itemName: submitData.item_name,
+          amount: submitData.amount,
+          generalCategory: submitData.general_category,
+          userMemo: submitData.user_memo,
+        }),
+      }).catch(err => console.error('Background AI trigger error:', err));
+
+      // 3. 即座に完了処理へ
       onSuccess();
+      onClose();
     } catch (err) {
       console.error('Save error:', err);
       setError(err instanceof Error ? err.message : '保存に失敗しました');
-    } finally {
       setSaving(false);
     }
   };
@@ -143,9 +135,8 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
           </div>
         )}
 
-        {/* STEP 1: 入力フォーム */}
-        {step === 'input' && (
-          <div className="space-y-6">
+        {/* 入力フォーム本体 */}
+        <div className="space-y-6">
             {/* 特大金額入力 */}
             <div className="flex flex-col items-center">
               <div className="relative flex w-full items-center justify-center border-b border-border/40 pb-4">
@@ -253,107 +244,28 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
             {/* 保存ボタン */}
             <div className="pt-8">
               <Button
-                onClick={handleAnalyze}
-                disabled={!formData.amount || formData.amount <= 0}
-                className={`h-16 w-full rounded-full text-xl font-bold transition-all duration-300 ${
-                  !formData.amount || formData.amount <= 0
+                onClick={handleSaveBackground}
+                disabled={!formData.amount || formData.amount <= 0 || saving}
+                className={`flex h-16 w-full gap-2 items-center justify-center rounded-full text-xl font-bold transition-all duration-300 ${
+                  !formData.amount || formData.amount <= 0 || saving
                     ? 'bg-muted text-muted-foreground opacity-50'
                     : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl hover:shadow-2xl hover:-translate-y-1'
                 }`}
               >
-                保存
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: 分析中アニメーション */}
-        {step === 'analyzing' && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="relative mb-6">
-              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 animate-pulse" />
-              <Loader2 className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-spin text-emerald-500" />
-            </div>
-            <p className="text-sm font-medium">あなたの消費心理をAIが分析中...</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              「{formData.item_name}」の購入動機を判定しています
-            </p>
-          </div>
-        )}
-
-        {/* STEP 3: 分析結果 */}
-        {step === 'result' && aiResult && (
-          <div className="space-y-4">
-            {/* 分析結果カード */}
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-                <span className="text-xs font-semibold text-emerald-500">AI分析結果</span>
-                {aiResult.source === 'fallback' && (
-                  <Badge variant="outline" className="text-[10px] h-5">ルールベース</Badge>
-                )}
-              </div>
-
-              {psychCategory && (
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-xl text-2xl"
-                    style={{ backgroundColor: `${psychCategory.color}15` }}
-                  >
-                    {psychCategory.emoji}
-                  </div>
-                  <div>
-                    <p className="font-bold" style={{ color: psychCategory.color }}>
-                      {psychCategory.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{aiResult.ai_reason}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 入力内容のサマリー */}
-            <div className="rounded-xl bg-muted/30 p-3 space-y-1.5">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">品名</span>
-                <span className="font-medium">{formData.item_name}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">金額</span>
-                <span className="font-bold text-red-400">¥{Number(formData.amount).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">費目</span>
-                <span>{GENERAL_CATEGORIES[formData.general_category]}</span>
-              </div>
-              {formData.user_memo && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">メモ</span>
-                  <span className="max-w-[60%] truncate text-right">{formData.user_memo}</span>
-                </div>
-              )}
-            </div>
-
-            {/* アクションボタン */}
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setStep('input')}>
-                修正する
-              </Button>
-              <Button
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 font-semibold text-white hover:from-emerald-600 hover:to-teal-700"
-                onClick={handleSave}
-                disabled={saving}
-              >
                 {saving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    保存処理中...
+                  </>
                 ) : (
-                  <Check className="mr-2 h-4 w-4" />
+                  <>
+                    <Check className="h-6 w-6" />
+                    記録する
+                  </>
                 )}
-                {saving ? '保存中...' : '記録する'}
               </Button>
             </div>
           </div>
-        )}
       </div>
     </div>
   );

@@ -10,76 +10,25 @@ import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { getBudgetSummary } from '@/utils/budget';
 import { DEFAULT_BILLING_START_DAY, DEFAULT_MONTHLY_BUDGET } from '@/lib/constants';
 import { Transaction, BudgetSummary } from '@/types';
+import useSWR from 'swr';
 
-// Strict Modeでの重複実行（レースコンディション）を防ぐためのグローバルロック
-let globalSyncPromise: Promise<any> | null = null;
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [userSettings, setUserSettings] = useState<{monthly_budget: number, billing_start_day: number} | null>(null);
 
-  const today = new Date();
-
-  const fetchSettingsAndTransactions = useCallback(async () => {
-    try {
-      setLoading(true);
-      // 1. 設定を取得
-      let budget = DEFAULT_MONTHLY_BUDGET;
-      let startDay = DEFAULT_BILLING_START_DAY;
-      
-      const settingsRes = await fetch('/api/user/settings');
-      if (settingsRes.ok) {
-        const data = await settingsRes.json();
-        if (data.settings) {
-          budget = data.settings.monthly_budget;
-          startDay = data.settings.billing_start_day;
-          setUserSettings({ monthly_budget: budget, billing_start_day: startDay });
-        }
-      }
-
-      // 2. 固定費・サブスクの自動同期を実行（同時実行を防ぐ）
-      try {
-        if (!globalSyncPromise) {
-          globalSyncPromise = fetch('/api/subscriptions/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ billing_start_day: startDay }),
-          }).finally(() => {
-            globalSyncPromise = null;
-          });
-        }
-        await globalSyncPromise;
-      } catch (syncErr) {
-        console.error('Failed to sync subscriptions:', syncErr);
-      }
-
-      // 3. 設定情報から集計期間を計算してトランザクションを取得
-      const period = getCurrentBillingPeriod(startDay, today);
-      const startDate = formatDateToISO(period.startDate);
-      const endDate = formatDateToISO(period.endDate);
-
-      const res = await fetch(`/api/transactions?startDate=${startDate}&endDate=${endDate}`);
-
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data.transactions || []);
-      } else {
-        setTransactions([]);
-      }
-    } catch {
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // SWRによるデータ取得（キャッシュと再検証）
+  const { data, error, isLoading, mutate } = useSWR('/api/dashboard/init', fetcher, { revalidateOnFocus: true });
 
   useEffect(() => {
     setMounted(true);
-    fetchSettingsAndTransactions();
-  }, [fetchSettingsAndTransactions]);
+  }, []);
+
+  const today = new Date();
+  const transactions: Transaction[] = data?.transactions || [];
+  const userSettings = data?.settings || null;
+  const loading = isLoading || (!data && !error);
 
   // 今月の総支出を計算
   const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -141,6 +90,10 @@ export default function HomePage() {
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/20" />
             ))
+          ) : transactions.length === 0 ? (
+            <div className="rounded-xl border border-border/30 bg-card/50 p-6 text-center text-sm text-muted-foreground">
+              今月の支出はまだありません。
+            </div>
           ) : (
             transactions.slice(0, 5).map((t) => (
               <div
@@ -188,7 +141,7 @@ export default function HomePage() {
           onClose={() => setShowForm(false)}
           onSuccess={() => {
             setShowForm(false);
-            fetchSettingsAndTransactions();
+            mutate();
           }}
         />
       )}

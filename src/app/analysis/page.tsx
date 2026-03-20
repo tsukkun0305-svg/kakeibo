@@ -8,42 +8,28 @@ import PsychologyChart from '@/components/charts/PsychologyChart';
 import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { DEFAULT_BILLING_START_DAY } from '@/lib/constants';
 import { Transaction } from '@/types';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 
 
 export default function AnalysisPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-
-  const today = new Date();
-  const period = getCurrentBillingPeriod(DEFAULT_BILLING_START_DAY, today);
-
-  const fetchTransactions = useCallback(async () => {
-    try {
-      const startDate = formatDateToISO(period.startDate);
-      const endDate = formatDateToISO(period.endDate);
-      const res = await fetch(`/api/transactions?startDate=${startDate}&endDate=${endDate}`);
-
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data.transactions || []);
-      } else {
-        setTransactions([]);
-      }
-    } catch {
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, error, isLoading } = useSWR('/api/dashboard/init', fetcher, { revalidateOnFocus: true });
 
   useEffect(() => {
     setMounted(true);
-    fetchTransactions();
-  }, [fetchTransactions]);
+  }, []);
 
-  if (!mounted || loading) {
+  const transactions: Transaction[] = data?.transactions || [];
+
+  const period = data?.period || {
+    startDate: formatDateToISO(new Date()),
+    endDate: formatDateToISO(new Date())
+  };
+
+  if (!mounted || isLoading || (!data && !error)) {
     return (
       <div className="space-y-4">
         <div className="h-10 animate-pulse rounded-lg bg-muted/30" />
@@ -62,7 +48,7 @@ export default function AnalysisPage() {
       {/* 期間表示 */}
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          集計期間: {formatDateToISO(period.startDate).slice(5)} 〜 {formatDateToISO(period.endDate).slice(5)}
+          集計期間: {typeof period.startDate === 'string' ? period.startDate.slice(5) : ''} 〜 {typeof period.endDate === 'string' ? period.endDate.slice(5) : ''}
         </p>
       </div>
 
