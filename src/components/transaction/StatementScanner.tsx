@@ -27,24 +27,26 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
   const [saving, setSaving] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setScanning(true);
     try {
-      // 画像をBase64に変換
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
+      // すべての画像をBase64に変換
+      const base64Promises = files.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
       });
-      const base64Image = await base64Promise;
+      const base64Images = await Promise.all(base64Promises);
 
       // API呼び出し
       const res = await fetch('/api/ai/analyze-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image }),
+        body: JSON.stringify({ images: base64Images }),
       });
 
       if (!res.ok) throw new Error('解析に失敗しました');
@@ -135,9 +137,9 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
                 <Camera className="h-10 w-10 text-emerald-500" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">明細を読み取る</h3>
+                <h3 className="text-lg font-semibold text-gray-900">明細を読み取る（複数枚対応）</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  クレジットカードの利用明細画面をスクリーンショットし、アップロードしてください。
+                  クレジットカードの利用明細画面をスクリーンショットし、アップロードしてください（複数枚一括も可能）。
                 </p>
               </div>
               <Button 
@@ -152,6 +154,7 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
                 onChange={handleFileChange} 
                 className="hidden" 
                 accept="image/*"
+                multiple
               />
             </div>
           ) : scanning ? (
