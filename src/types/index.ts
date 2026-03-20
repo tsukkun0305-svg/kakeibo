@@ -79,6 +79,8 @@ export interface BillingPeriod {
 export interface BudgetSummary {
   monthlyBudget: number;
   totalSpent: number;
+  fixedSpent: number;
+  flexibleSpent: number;
   remainingBudget: number;
   remainingDays: number;
   dailyBudget: number;

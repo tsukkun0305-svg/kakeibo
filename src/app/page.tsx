@@ -35,11 +35,6 @@ export default function HomePage() {
   const userSettings = data?.settings || null;
   const loading = isLoading || (!data && !error);
 
-  // 今月の総支出を計算（保留中は除外）
-  const totalSpent = transactions
-    .filter(t => !t.is_pending)
-    .reduce((sum, t) => sum + t.amount, 0);
-
   // 今日の支出（保留中は除外）
   const todayStr = formatDateToISO(today);
   const todaySpent = transactions
@@ -52,10 +47,12 @@ export default function HomePage() {
   
   const summary: BudgetSummary = getBudgetSummary(
     currentBudget,
-    totalSpent,
+    transactions, // ここを transactions に変更
     currentStartDay,
     today
   );
+
+  const totalSpent = summary.totalSpent;
 
   if (!mounted) {
     return (
