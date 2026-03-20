@@ -13,6 +13,7 @@ import SubscriptionManager from '@/components/settings/SubscriptionManager';
 export default function SettingsPage() {
   const [budget, setBudget] = useState(200000);
   const [billingDay, setBillingDay] = useState(25);
+  const [shortcutToken, setShortcutToken] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,7 @@ export default function SettingsPage() {
           if (data.settings) {
             setBudget(data.settings.monthly_budget);
             setBillingDay(data.settings.billing_start_day);
+            setShortcutToken(data.settings.shortcut_token || '');
           }
         }
       } catch (err) {
@@ -116,6 +118,45 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* 外部連携設定（APIトークン） */}
+      <Card className="border-border/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">🔗 外部アプリ連携（ショートカット等）</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg bg-blue-500/10 p-3">
+            <div className="flex items-start gap-2">
+              <Info className="mt-0.5 h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <div className="text-[10px] text-blue-400 leading-relaxed">
+                iPhoneのショートカット等から支出を自動登録するための認証トークンです。API呼び出しの際、ヘッダーに <code>Authorization: Bearer トークン</code> を付与してください。
+              </div>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">パーソナルAPIトークン</Label>
+            <div className="mt-1 flex items-center gap-2">
+              <Input
+                readOnly
+                className="font-mono text-xs bg-muted/30"
+                value={shortcutToken || 'トークン読込中...'}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (shortcutToken) {
+                    navigator.clipboard.writeText(shortcutToken);
+                    alert('トークンをコピーしました');
+                  }
+                }}
+              >
+                コピー
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* サブスクリプション管理 */}
       <SubscriptionManager />

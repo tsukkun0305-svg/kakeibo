@@ -14,7 +14,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('users')
-      .select('monthly_budget, billing_start_day, plan_type')
+      .select('monthly_budget, billing_start_day, plan_type, shortcut_token')
       .eq('id', user.id)
       .single();
 
@@ -68,7 +68,7 @@ export async function PUT(request: Request) {
         billing_start_day,
       })
       .eq('id', user.id)
-      .select('monthly_budget, billing_start_day, plan_type')
+      .select('monthly_budget, billing_start_day, plan_type, shortcut_token')
       .single();
 
     if (error) {
