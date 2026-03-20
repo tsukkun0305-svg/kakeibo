@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Camera, X, Check, Trash2, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import imageCompression from 'browser-image-compression';
 
 interface ScannedTransaction {
   id: string;
@@ -32,21 +33,28 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
 
     setScanning(true);
     try {
-      // すべての画像をBase64に変換
-      const base64Promises = files.map(file => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-      });
-      const base64Images = await Promise.all(base64Promises);
+      // すべての画像を圧縮し、Base64に変換
+      const compressedImages = await Promise.all(
+        files.map(async (file) => {
+          const options = {
+            maxSizeMB: 0.8, // 1枚あたり800KB程度に抑制 (Vercelの4.5MB制限対策)
+            maxWidthOrHeight: 1600,
+            useWebWorker: true,
+          };
+          const compressedFile = await imageCompression(file, options);
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(compressedFile);
+          });
+        })
+      );
 
       // API呼び出し
       const res = await fetch('/api/ai/analyze-statement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images: base64Images }),
+        body: JSON.stringify({ images: compressedImages }),
       });
 
       if (!res.ok) throw new Error('解析に失敗しました');
@@ -160,8 +168,8 @@ export default function StatementScanner({ onSuccess, onClose }: StatementScanne
           ) : scanning ? (
             <div className="flex flex-col items-center justify-center py-20 animate-pulse">
               <Loader2 className="h-12 w-12 animate-spin text-emerald-500 mb-4" />
-              <p className="text-emerald-600 font-medium">Geminiが画像を解析中...</p>
-              <p className="text-xs text-gray-400 mt-2">数秒かかる場合があります</p>
+              <p className="text-emerald-600 font-medium">画像を圧縮・解析中...</p>
+              <p className="text-xs text-gray-400 mt-2">複数枚の場合は30秒ほどかかる場合があります</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 italic">
