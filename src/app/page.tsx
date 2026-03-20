@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Camera } from 'lucide-react';
+import { Plus, Camera, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BudgetCard from '@/components/dashboard/BudgetCard';
 import QuickStats from '@/components/dashboard/QuickStats';
@@ -35,13 +35,15 @@ export default function HomePage() {
   const userSettings = data?.settings || null;
   const loading = isLoading || (!data && !error);
 
-  // 今月の総支出を計算
-  const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
+  // 今月の総支出を計算（保留中は除外）
+  const totalSpent = transactions
+    .filter(t => !t.is_pending)
+    .reduce((sum, t) => sum + t.amount, 0);
 
-  // 今日の支出
+  // 今日の支出（保留中は除外）
   const todayStr = formatDateToISO(today);
   const todaySpent = transactions
-    .filter((t) => t.transaction_date === todayStr)
+    .filter((t) => t.transaction_date === todayStr && !t.is_pending)
     .reduce((sum, t) => sum + t.amount, 0);
 
   // 予算サマリー計算
@@ -103,24 +105,33 @@ export default function HomePage() {
             transactions.slice(0, 5).map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm transition-colors hover:bg-card/80"
+                className={`flex items-center justify-between rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm transition-colors hover:bg-card/80 ${t.is_pending ? 'opacity-50' : ''}`}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium">{t.item_name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-medium">{t.item_name}</p>
+                    {t.is_pending && <Clock className="h-3 w-3 text-orange-400" />}
+                  </div>
                   <p className="text-[10px] text-muted-foreground">
-                    {t.transaction_date} • {t.ai_psychological_category ? (
-                      <span className="text-emerald-500">
-                        {t.ai_psychological_category === 'stress_relief' && 'ストレス発散'}
-                        {t.ai_psychological_category === 'vanity' && '見栄・承認欲求'}
-                        {t.ai_psychological_category === 'habit' && '習慣・惰性'}
-                        {t.ai_psychological_category === 'reward' && 'ご褒美'}
-                        {t.ai_psychological_category === 'self_investment' && '自己投資'}
-                        {t.ai_psychological_category === 'necessity' && '必要経費'}
-                      </span>
-                    ) : '未分類'}
+                    {t.transaction_date} • {t.is_pending ? (
+                      <span className="text-orange-400 font-medium italic">保留中 (集計除外)</span>
+                    ) : (
+                      <>
+                        {t.ai_psychological_category ? (
+                          <span className="text-emerald-500">
+                            {t.ai_psychological_category === 'stress_relief' && 'ストレス発散'}
+                            {t.ai_psychological_category === 'vanity' && '見栄・承認欲求'}
+                            {t.ai_psychological_category === 'habit' && '習慣・惰性'}
+                            {t.ai_psychological_category === 'reward' && 'ご褒美'}
+                            {t.ai_psychological_category === 'self_investment' && '自己投資'}
+                            {t.ai_psychological_category === 'necessity' && '必要経費'}
+                          </span>
+                        ) : '未分類'}
+                      </>
+                    )}
                   </p>
                 </div>
-                <span className="ml-3 text-sm font-bold text-red-400">
+                <span className={`ml-3 text-sm font-bold whitespace-nowrap ${t.is_pending ? 'text-muted-foreground line-through' : 'text-red-400'}`}>
                   -{new Intl.NumberFormat('ja-JP').format(t.amount)}円
                 </span>
               </div>

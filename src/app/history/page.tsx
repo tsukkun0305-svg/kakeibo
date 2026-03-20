@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { DEFAULT_BILLING_START_DAY, PSYCHOLOGICAL_CATEGORIES } from '@/lib/constants';
@@ -46,6 +46,29 @@ export default function HistoryPage() {
     }
   };
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleTogglePending = async (id: string, currentStatus: boolean) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/transactions?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pending: !currentStatus }),
+      });
+      if (res.ok) {
+        mutate();
+      } else {
+        alert('更新に失敗しました');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -67,8 +90,10 @@ export default function HistoryPage() {
 
   const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
 
-  // 今月の総支出
-  const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
+  // 今月の総支出（保留中は除外）
+  const totalSpent = transactions
+    .filter(t => !t.is_pending)
+    .reduce((sum, t) => sum + t.amount, 0);
 
   if (!mounted || isLoading || (!data && !error)) {
     return (
@@ -100,7 +125,9 @@ export default function HistoryPage() {
       {/* 日付ごとの支出リスト */}
       {sortedDates.map((date) => {
         const items = groupedByDate[date];
-        const dailyTotal = items.reduce((sum, t) => sum + t.amount, 0);
+        const dailyTotal = items
+          .filter(t => !t.is_pending)
+          .reduce((sum, t) => sum + t.amount, 0);
 
         return (
           <div key={date}>
@@ -122,13 +149,20 @@ export default function HistoryPage() {
                 return (
                   <div
                     key={t.id}
-                    className="rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm"
+                    className={`rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm transition-opacity ${t.is_pending ? 'opacity-50' : ''}`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{t.item_name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium">{t.item_name}</p>
+                          {t.is_pending && (
+                            <Badge variant="outline" className="h-4 px-1.5 text-[8px] bg-orange-100/50 text-orange-600 border-orange-200">
+                              保留中
+                            </Badge>
+                          )}
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {psychMeta && (
+                          {psychMeta && !t.is_pending && (
                             <Badge
                               variant="outline"
                               className="h-5 text-[10px] gap-0.5 border-0"
@@ -148,22 +182,37 @@ export default function HistoryPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2 ml-3">
-                        <span className="text-sm font-bold text-red-400 whitespace-nowrap">
+                        <span className={`text-sm font-bold whitespace-nowrap ${t.is_pending ? 'text-muted-foreground line-through' : 'text-red-400'}`}>
                           -{new Intl.NumberFormat('ja-JP').format(t.amount)}円
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={deletingId === t.id}
-                          className="h-7 w-7 text-muted-foreground hover:text-red-500 transition-colors"
-                          onClick={() => handleDelete(t.id, t.item_name)}
-                        >
-                          {deletingId === t.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={updatingId === t.id}
+                            className={`h-7 w-7 transition-colors ${t.is_pending ? 'text-orange-500 hover:bg-orange-50' : 'text-muted-foreground hover:bg-muted'}`}
+                            onClick={() => handleTogglePending(t.id, !!t.is_pending)}
+                          >
+                            {updatingId === t.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Clock className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={deletingId === t.id}
+                            className="h-7 w-7 text-muted-foreground hover:text-red-500 transition-colors"
+                            onClick={() => handleDelete(t.id, t.item_name)}
+                          >
+                            {deletingId === t.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>

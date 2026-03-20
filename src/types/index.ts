@@ -20,6 +20,7 @@ export interface Transaction {
   ai_psychological_category?: PsychologicalCategory | null;
   ai_reason?: string | null;
   source_subscription_id?: string | null;
+  is_pending?: boolean;
   created_at?: string;
 }
 
