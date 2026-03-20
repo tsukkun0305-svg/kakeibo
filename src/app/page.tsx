@@ -142,9 +142,24 @@ export default function HomePage() {
       {showForm && (
         <TransactionForm
           onClose={() => setShowForm(false)}
-          onSuccess={() => {
+          onSuccess={(transaction) => {
             setShowForm(false);
-            mutate();
+            mutate(); // 即座にキャッシュ更新（この時点では「未分類・⏳分析中」が表示される）
+
+            // モーダルが閉じても通信がキャンセルされないよう、常に存在する親側でバックグラウンド実行
+            if (transaction) {
+              fetch('/api/ai/background-classify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  transactionId: transaction.id,
+                  itemName: transaction.item_name,
+                  amount: transaction.amount,
+                  generalCategory: transaction.general_category,
+                  userMemo: transaction.user_memo,
+                }),
+              }).catch(err => console.error('Background AI trigger error:', err));
+            }
           }}
         />
       )}

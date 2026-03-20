@@ -21,7 +21,9 @@ import { formatDateToISO } from '@/utils/date';
 
 interface TransactionFormProps {
   onClose: () => void;
-  onSuccess: () => void;
+  // Transaction 型をインポートするか、ここでは any で受け取って親で処理させる
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onSuccess: (tx: any) => void;
 }
 
 type FormStep = 'input' | 'analyzing' | 'result';
@@ -77,23 +79,9 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
 
       const { transaction } = await txRes.json();
 
-      // 2. 分析・DB更新APIをバックグラウンド（非同期）で走らせる
-      // 画面を即座に閉じてもブラウザがリクエストをキャンセルしないよう keepalive を付与
-      fetch('/api/ai/background-classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId: transaction.id,
-          itemName: submitData.item_name,
-          amount: submitData.amount,
-          generalCategory: submitData.general_category,
-          userMemo: submitData.user_memo,
-        }),
-        keepalive: true,
-      }).catch(err => console.error('Background AI trigger error:', err));
-
-      // 3. 即座に完了処理へ
-      onSuccess();
+      // バックグラウンド分析はコンポーネントが破棄されてもキャンセルされないよう、
+      // このモーダルを呼び出している親（HomePage）のレイヤーで実行する
+      onSuccess(transaction);
       onClose();
     } catch (err) {
       console.error('Save error:', err);
