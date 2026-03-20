@@ -22,17 +22,21 @@ function getFallbackCategory(itemName: string, generalCategory: string): { cat: 
 }
 
 export async function POST(request: Request) {
+  console.log('[AI Check] Background AI classify started');
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      console.log('[AI Check] Unauthorized');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
+    console.log('[AI Check] Request Body:', body);
     const { transactionId, itemName, amount, generalCategory, userMemo } = body;
 
     if (!transactionId || !itemName || !amount) {
+      console.log('[AI Check] Missing fields:', { transactionId, itemName, amount });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -40,11 +44,15 @@ export async function POST(request: Request) {
     let aiReason = '';
 
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log('[AI Check] API Key exists:', !!apiKey);
+
     if (!apiKey) {
+      console.log('[AI Check] Using fallback rules');
       const fallback = getFallbackCategory(itemName, generalCategory);
       aiPsychologicalCategory = fallback.cat;
       aiReason = fallback.reason;
     } else {
+      console.log('[AI Check] Calling OpenAI...');
       const openai = new OpenAI({ apiKey });
       const prompt = `以下の支出情報を分析し、背後にある心理要因を推測してください。
 
@@ -77,17 +85,21 @@ export async function POST(request: Request) {
         temperature: 0.7,
       });
 
+      console.log('[AI Check] OpenAI returned successfully');
+
       const content = response.choices[0].message.content;
       if (content) {
         const result = JSON.parse(content);
         aiPsychologicalCategory = result.category;
         aiReason = result.reason;
+        console.log('[AI Check] parsed result:', result);
       } else {
         throw new Error('No content from OpenAI');
       }
     }
 
     // 取得したAI分析結果でTransactionsテーブルをUPDATEする
+    console.log('[AI Check] Executing Supabase UPDATE...', { transactionId, category: aiPsychologicalCategory });
     const { error: updateError } = await supabase
       .from('transactions')
       .update({
@@ -97,7 +109,11 @@ export async function POST(request: Request) {
       .eq('id', transactionId)
       .eq('user_id', user.id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('[AI Check] Supabase update failed:', updateError);
+      throw updateError;
+    }
+    console.log('[AI Check] Background AI classify SUCCESS');
 
     return NextResponse.json({ success: true, aiPsychologicalCategory, aiReason });
   } catch (err) {

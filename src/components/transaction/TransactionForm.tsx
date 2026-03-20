@@ -78,6 +78,7 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
       const { transaction } = await txRes.json();
 
       // 2. 分析・DB更新APIをバックグラウンド（非同期）で走らせる
+      // 画面を即座に閉じてもブラウザがリクエストをキャンセルしないよう keepalive を付与
       fetch('/api/ai/background-classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,6 +89,7 @@ export default function TransactionForm({ onClose, onSuccess }: TransactionFormP
           generalCategory: submitData.general_category,
           userMemo: submitData.user_memo,
         }),
+        keepalive: true,
       }).catch(err => console.error('Background AI trigger error:', err));
 
       // 3. 即座に完了処理へ
