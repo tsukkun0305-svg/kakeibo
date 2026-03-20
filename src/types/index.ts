@@ -16,10 +16,21 @@ export interface Transaction {
   amount: number;
   item_name: string;
   general_category: GeneralCategory;
-  user_memo: string;
-  ai_psychological_category: PsychologicalCategory | null;
-  ai_reason: string | null;
-  created_at: string;
+  user_memo?: string;
+  ai_psychological_category?: PsychologicalCategory | null;
+  ai_reason?: string | null;
+  source_subscription_id?: string | null;
+  created_at?: string;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  name: string;
+  amount: number;
+  billing_day: number;
+  is_active: boolean;
+  created_at?: string;
 }
 
 // ===== Category Types =====

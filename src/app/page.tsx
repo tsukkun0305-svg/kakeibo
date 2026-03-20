@@ -11,6 +11,8 @@ import { getBudgetSummary } from '@/utils/budget';
 import { DEFAULT_BILLING_START_DAY, DEFAULT_MONTHLY_BUDGET } from '@/lib/constants';
 import { Transaction, BudgetSummary } from '@/types';
 
+// Strict Modeでの重複実行（レースコンディション）を防ぐためのグローバルロック
+let globalSyncPromise: Promise<any> | null = null;
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
@@ -38,7 +40,23 @@ export default function HomePage() {
         }
       }
 
-      // 2. 設定情報から集計期間を計算してトランザクションを取得
+      // 2. 固定費・サブスクの自動同期を実行（同時実行を防ぐ）
+      try {
+        if (!globalSyncPromise) {
+          globalSyncPromise = fetch('/api/subscriptions/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ billing_start_day: startDay }),
+          }).finally(() => {
+            globalSyncPromise = null;
+          });
+        }
+        await globalSyncPromise;
+      } catch (syncErr) {
+        console.error('Failed to sync subscriptions:', syncErr);
+      }
+
+      // 3. 設定情報から集計期間を計算してトランザクションを取得
       const period = getCurrentBillingPeriod(startDay, today);
       const startDate = formatDateToISO(period.startDate);
       const endDate = formatDateToISO(period.endDate);

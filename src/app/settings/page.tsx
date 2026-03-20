@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Save, Info, Loader2 } from 'lucide-react';
+import SubscriptionManager from '@/components/settings/SubscriptionManager';
 
 export default function SettingsPage() {
   const [budget, setBudget] = useState(200000);
@@ -171,6 +172,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* サブスクリプション管理 */}
+      <SubscriptionManager />
 
       {/* プラン情報 */}
       <Card className="border-border/40">
