@@ -1,5 +1,5 @@
 import { BudgetSummary, Transaction } from '@/types';
-import { getRemainingDays } from './date';
+import { getRemainingDays, formatDateToISO } from './date';
 
 /**
  * 残り予算を算出する。
@@ -28,6 +28,7 @@ export function getDailyBudget(remainingBudget: number, remainingDays: number): 
 /**
  * 予算サマリーを一括算出する。
  * 固定費（家賃、サブスク、公共料金等）を日割り計算から除外する。
+ * 1日の予算は「当日の割り当て分 - 今日の支出」として算出する。
  *
  * @param monthlyBudget - 月間予算設定額
  * @param transactions - 今月の支出リスト
@@ -41,6 +42,8 @@ export function getBudgetSummary(
   billingStartDay: number,
   today: Date = new Date()
 ): BudgetSummary {
+  const todayStr = formatDateToISO(today);
+
   // 1. カウント対象外（保留中）を除外
   const activeTransactions = transactions.filter(t => !t.is_pending);
 
@@ -53,18 +56,29 @@ export function getBudgetSummary(
     .filter(t => fixedCategories.includes(t.general_category) || t.source_subscription_id)
     .reduce((sum, t) => sum + t.amount, 0);
 
-  // 4. 流動費（それ以外の日常的な支出）
-  const flexibleSpent = totalSpent - fixedSpent;
+  // 4. 今日の流動費支出を計算
+  const flexibleSpentToday = activeTransactions
+    .filter(t => t.transaction_date === todayStr && !fixedCategories.includes(t.general_category) && !t.source_subscription_id)
+    .reduce((sum, t) => sum + t.amount, 0);
 
-  // 5. 残り予算と残り日数
+  // 5. 流動費支出（今日以前のものすべて）
+  const flexibleSpent = totalSpent - fixedSpent;
+  const flexibleSpentBeforeToday = flexibleSpent - flexibleSpentToday;
+
+  // 6. 残り予算と残り日数
   const remainingBudget = monthlyBudget - totalSpent;
   const remainingDays = getRemainingDays(billingStartDay, today);
 
-  // 6. 1日に使える金額（固定費を差し引いた残り予算を日割り）
-  // (月間予算 - 固定費合計 - すでに使った流動費) / 残り日数
-  const dailyBudget = remainingDays > 0 
-    ? Math.max(Math.floor(remainingBudget / remainingDays), 0)
+  // 7. 1日に使える金額の計算
+  // ユーザーの直感に合わせるため：
+  // 「今日を含めた残り日数で使える平均額」から「今日すでに使った分」を引く
+  // TargetDaily = (月間予算 - 固定費合計 - 昨日までの流動費) / 残り日数
+  const targetDailyBudget = remainingDays > 0
+    ? (monthlyBudget - fixedSpent - flexibleSpentBeforeToday) / remainingDays
     : 0;
+    
+  // 1円単位だとノイズが多いためフロア
+  const dailyBudget = Math.floor(targetDailyBudget - flexibleSpentToday);
 
   return {
     monthlyBudget,
