@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Trash2, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getCurrentBillingPeriod, formatDateToISO } from '@/utils/date';
 import { DEFAULT_BILLING_START_DAY, PSYCHOLOGICAL_CATEGORIES } from '@/lib/constants';
 import { Transaction, PsychologicalCategory } from '@/types';
@@ -16,10 +18,33 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export default function HistoryPage() {
   const [mounted, setMounted] = useState(false);
 
-  const { data, error, isLoading } = useSWR('/api/dashboard/init', fetcher, { 
+  const { data, error, isLoading, mutate } = useSWR('/api/dashboard/init', fetcher, { 
     revalidateOnFocus: true,
     refreshInterval: 5000
   });
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string, itemName: string) => {
+    if (!confirm(`「${itemName}」の履歴を削除しますか？`)) return;
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/transactions?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        mutate();
+      } else {
+        alert('削除に失敗しました');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -122,9 +147,24 @@ export default function HistoryPage() {
                           )}
                         </div>
                       </div>
-                      <span className="ml-3 text-sm font-bold text-red-400 whitespace-nowrap">
-                        -{new Intl.NumberFormat('ja-JP').format(t.amount)}円
-                      </span>
+                      <div className="flex flex-col items-end gap-2 ml-3">
+                        <span className="text-sm font-bold text-red-400 whitespace-nowrap">
+                          -{new Intl.NumberFormat('ja-JP').format(t.amount)}円
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={deletingId === t.id}
+                          className="h-7 w-7 text-muted-foreground hover:text-red-500 transition-colors"
+                          onClick={() => handleDelete(t.id, t.item_name)}
+                        >
+                          {deletingId === t.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -134,9 +174,12 @@ export default function HistoryPage() {
         );
       })}
 
-      {transactions.length === 0 && (
-        <div className="py-12 text-center">
-          <p className="text-sm text-muted-foreground">支出データがありません</p>
+      {transactions.length === 0 && !isLoading && (
+        <div className="py-20 text-center flex flex-col items-center gap-3">
+          <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center">
+            <Trash2 className="h-8 w-8 text-muted-foreground/40" />
+          </div>
+          <p className="text-sm text-muted-foreground font-medium">支出データがありません</p>
         </div>
       )}
     </div>
